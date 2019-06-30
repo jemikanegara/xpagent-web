@@ -76,6 +76,7 @@ export default {
 }
 .flex {
   display: flex;
+  flex-wrap: wrap;
 }
 .container {
   max-width: 980px;

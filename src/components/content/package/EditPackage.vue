@@ -1,23 +1,29 @@
 <template>
   <div id="edit-package">
     <template v-if="packageNotFound">
-      <div>Package not found</div>
+      <div class="not-found">Oops, Package not found</div>
     </template>
     <template v-else>
       <div v-if="addPackage" class="title">Add Package</div>
       <div v-if="!addPackage" class="title">Edit Package</div>
       <form @submit="submitPackage">
-        <div></div>
         <!-- Section : Images -->
         <div class="section-container">
           <h2>Upload Image</h2>
+          <template v-if="errors.packageImages">
+            <div class="error">{{this.errors.packageImages}}</div>
+          </template>
           <div class="flex">
             <template v-if="newPackage.packageImages.length > 0">
               <template v-for="(imgUrl, i) in newPackage.packageImages">
                 <div class="upload-image" :key="`uploaded-${i}`">
                   <div class="upload-box">
                     <img :src="imgUrl">
-                    <div class="delete-image" @click="deleteImage(i)">
+                    <div
+                      v-if="newPackage.packageImages.length > 1"
+                      class="delete-image"
+                      @click="addPackage ? deleteImage(i) : deleteConfirm(i)"
+                    >
                       <font-awesome icon="times" size="lg"/>
                     </div>
                   </div>
@@ -35,33 +41,52 @@
             </template>
           </div>
         </div>
+
         <!-- Section : Package Description -->
         <div class="section-container">
           <h2>Package Description</h2>
+          <template v-if="errors.packageName">
+            <div class="error">{{this.errors.packageName}}</div>
+          </template>
           <div class="flex">
             <label>Package Name :</label>
             <input type="text" v-model="newPackage.packageName">
           </div>
+          <template v-if="errors.packageDescription">
+            <div class="error">{{this.errors.packageDescription}}</div>
+          </template>
           <div class="flex">
             <label>Package Description</label>
             <textarea type="text" v-model="newPackage.packageDescription"></textarea>
           </div>
         </div>
+
         <!-- Section : Package Pricing -->
         <div class="section-container">
           <h2>Pricing Information</h2>
+          <template v-if="errors.packageDuration">
+            <div class="error">{{this.errors.packageDuration}}</div>
+          </template>
           <div class="flex">
             <label>Package Duration Estimation (in hours)</label>
-            <input type="number" v-model="newPackage.packageDuration">
+            <input type="number" min="1" v-model.number="newPackage.packageDuration">
           </div>
+
+          <template v-if="errors.packageCustomer">
+            <div class="error">{{this.errors.packageCustomer}}</div>
+          </template>
           <div class="flex">
             <label>Maximum Person per Package</label>
-            <input type="number" v-model="newPackage.packageCustomer">
+            <input type="number" min="1" v-model.number="newPackage.packageCustomer">
           </div>
+
+          <template v-if="errors.packagePrice">
+            <div class="error">{{this.errors.packagePrice}}</div>
+          </template>
           <div class="flex">
             <label>Package Price</label>
             <template v-if="rawPrice">
-              <input type="number" v-model="newPackage.packagePrice" @blur="hidePrice">
+              <input type="number" min="1" v-model="newPackage.packagePrice" @blur="hidePrice">
             </template>
             <template v-if="!rawPrice">
               <input type="text" v-model="price" @click="showPrice">
@@ -70,10 +95,29 @@
         </div>
 
         <div class="flex">
-          <button class="normal-button">Cancel</button>
-          <input type="submit" value="Submit Changes" class="important-button">
+          <button type="button" class="normal-button" @click="() => {$router.go(-1)}">Cancel</button>
+          <input
+            type="submit"
+            value="Submit Changes"
+            class="important-button"
+            :disabled="disableSubmit"
+          >
         </div>
       </form>
+
+      <template v-if="deleteImageData.confirmPopUp">
+        <div class="delete-image-confirm">
+          <div class="delete-image-box">
+            <img :src="deleteImageData.image">
+            <div>Are you sure want to delete this image?</div>
+            <div>once it deleted there is no way to revert back</div>
+            <div class="buttons">
+              <button class="normal-button" @click="deleteConfirm()">Cancel</button>
+              <button class="important-button" @click="deleteImage">Delete</button>
+            </div>
+          </div>
+        </div>
+      </template>
     </template>
   </div>
 </template>
@@ -81,41 +125,40 @@
 <script>
 import Vue from "vue";
 import graphql from "../../../ajax/graphql";
-import axios from "axios";
+import {
+  createPackageQuery,
+  updatePackageQuery,
+  singlePackageQuery,
+  deletePackageImgQuery
+} from "./PackageQueries";
+
+const packageInit = {
+  packageName: "",
+  packageImages: [],
+  packagePrice: 0,
+  packageDescription: "",
+  packageDuration: 0,
+  packageCustomer: 0
+};
+
 export default {
   name: "edit-package",
   data: () => ({
     addPackage: false,
-    packageNotFound: false,
+    deleteImageData: {
+      confirmPopUp: false,
+      image: "",
+      imageId: -1
+    },
+    disableSubmit: false,
+    errors: {},
     imgEndpoint: process.env.VUE_APP_IMG,
-    rawPrice: false,
-    errors: {
-      packageImages: null,
-      packageName: null,
-      packageDescription: null,
-      packageDuration: null,
-      packageCustomer: null,
-      packagePrice: null
-    },
-    singlePackage: {
-      packageName: "",
-      packageImages: [],
-      packagePrice: 0,
-      packageDescription: "",
-      packageDuration: 0,
-      packageCustomer: 0
-    },
-    newPackage: {
-      packageName: "",
-      packageImages: [],
-      packagePrice: 0,
-      packageDescription: "",
-      packageDuration: 0,
-      packageCustomer: 0
-    },
+    newPackage: { ...packageInit },
+    packageNotFound: false,
     price: "",
     rawImages: [],
-    map: {}
+    rawPrice: false,
+    singlePackage: { ...packageInit }
   }),
   watch: {
     newPackage: {
@@ -127,13 +170,6 @@ export default {
         Vue.nextTick(() => (this.price = result));
       },
       deep: true
-    },
-    rawImages: {
-      handler: function() {
-        this.rawImages.forEach((img, i) => {
-          this.map[i.toString()] = [`variables.packageImages.${i}`];
-        });
-      }
     }
   },
   methods: {
@@ -146,7 +182,7 @@ export default {
     onFileChange(e) {
       const files = e.target.files || e.dataTransfer.files;
       if (!files.length) return;
-      Array.from(files).forEach((image, i) => {
+      Array.from(files).forEach(image => {
         this.createImage(image, reader => {
           this.newPackage.packageImages.push(reader.target.result);
         });
@@ -158,127 +194,132 @@ export default {
       reader.onload = cb;
       reader.readAsDataURL(file);
     },
-    deleteImage(e, id) {
-      this.newPackage.packageImages.splice(id, 1);
+    deleteConfirm(id) {
+      const showBox = id !== undefined;
+      document.body.style.height = showBox ? "100%" : "unset";
+      document.body.style.overflow = showBox ? "hidden" : "unset";
+      this.deleteImageData.confirmPopUp = showBox;
+      this.deleteImageData.image = showBox
+        ? this.newPackage.packageImages[id]
+        : "";
+      this.deleteImageData.imageId = showBox ? id : -1;
+    },
+    deleteImage(imgId) {
+      const id = this.addPackage ? imgId : this.deleteImageData.imageId;
+      const deleteLocalImg = () => {
+        this.newPackage.packageImages.splice(id, 1);
+      };
+
+      if (!this.addPackage) {
+        const variables = {
+          _id: this.$route.params.id,
+          imageKey: this.singlePackage.packageImages[id]
+        };
+
+        graphql(deletePackageImgQuery, variables)
+          .then(res => {
+            console.log(res);
+            if (!res.data.errors) {
+              deleteLocalImg();
+            }
+          })
+          .catch(() => {
+            return null;
+          });
+      } else {
+        deleteLocalImg();
+      }
+
+      this.deleteConfirm();
     },
     submitPackage(e) {
       e.preventDefault();
-      const createPackageQuery = `
-        mutation (tourPackage : {
-            $packageName : String!,
-            $packagePrice: Int!,
-            $packageDescription: String!,
-            $packageImages: [Upload!]!,
-            $packageDuration: Int!,
-            $packageCustomer: Int!
-            }) {
-              createPackage(
-                packageName : $packageName, 
-                packagePrice: $packagePrice, 
-                packageDescription: $packageDescription, 
-                packageImages: $packageImages, 
-                packageDuration: $packageDuration, 
-                packageCustomer: $packageCustomer){
-                  packageName
-                }
+      this.disableSubmit = true;
+      this.removeErrors();
+
+      // Form Validation
+      let isValid = true;
+      const matching = {
+        packageName: 6,
+        packageDescription: 30
+      };
+
+      for (let key in this.newPackage) {
+        const newPackage = this.newPackage;
+        const fieldName =
+          key[0].toUpperCase() +
+          key.substring(1).replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+
+        if (matching[key]) {
+          if (newPackage[key].length < matching[key]) {
+            this.errors[key] = `${fieldName} cannot be less than ${
+              matching[key]
+            } characters`;
+          }
+        } else {
+          if (newPackage[key].length < 1) {
+            this.errors[key] = `${fieldName} cannot be less than 1`;
+          }
         }
-      `;
+      }
 
-      const updatePackageQuery = `
-        mutation (
-        $_id: ID!,
-        $packageName: String,
-        $packagePrice: Int,
-        $packageDescription: String,
-        $packageImages: [Upload],
-        $packageDuration: Int,
-        $packageCustomer: Int
-        ) {
-          updatePackage(tourPackage: {
-                _id: $_id,
-                packageName: $packageName, 
-                packagePrice: $packagePrice, 
-                packageDescription: $packageDescription, 
-                packageImages: $packageImages, 
-                packageDuration: $packageDuration, 
-                packageCustomer: $packageCustomer}) {
-                  packageName
-                }
+      for (let key in this.newPackage) {
+        if (this.errors[key] !== null) {
+          isValid = false;
+          break;
         }
-      `;
+      }
 
-      const query =
-        this.$route.path === "/package/add"
-          ? createPackageQuery
-          : updatePackageQuery;
+      if (!isValid) this.disableSubmit = false;
+      if (!isValid) return;
 
-      const packageImages = Array.from(this.rawImages).map(() => null);
+      // Define GRAPHQL Query & Variables
+      const query = this.addPackage ? createPackageQuery : updatePackageQuery;
 
       const variables = {
         packageName: this.newPackage.packageName,
         packagePrice: +this.newPackage.packagePrice,
         packageDescription: this.newPackage.packageDescription,
-        packageImages: [...packageImages],
-        packageDuration: +this.newPackage.packageDuration,
-        packageCustomer: +this.newPackage.packageCustomer
+        packageImages: [...this.rawImages],
+        packageDuration: this.newPackage.packageDuration,
+        packageCustomer: this.newPackage.packageCustomer
       };
 
-      this.$route.path === "/package/add"
-        ? null
-        : (variables._id = this.$route.params.id);
-
-      const o = {
-        query,
-        variables
-      };
-
-      const form = new FormData();
-      form.append("operations", JSON.stringify(o));
-      form.append("map", JSON.stringify(this.map));
-      Array.from(this.rawImages).forEach((image, i) => {
-        form.append(`${i}`, image, image.name);
-      });
-
-      for (var pair of form.entries()) {
-        console.log(pair[0] + ", " + pair[1]);
+      // Nulling unchange field
+      if (!this.addPackage) {
+        variables._id = this.$route.params.id;
+        for (let key in this.newPackage) {
+          if (
+            key !== "packageImages" &&
+            this.newPackage[key] === this.singlePackage[key]
+          ) {
+            variables[key] = undefined;
+          }
+        }
       }
 
-      axios
-        .post("http://localhost:5000/graphql", form, {
-          headers: {
-            Accept: "application/json",
-            Authorization: `Bearer ${localStorage.getItem("token")}`
-          }
-        })
+      // Execute graphql
+      graphql(query, variables, "packageImages")
         .then(res => {
           if (!res.data.errors) {
+            this.disableSubmit = false;
             this.$router.push("/packages");
           }
         })
         .catch(() => {
-          return null;
+          this.disableSubmit = false;
         });
     },
-
     getSinglePackage() {
-      const query = `
-      query ($id : String!) {
-        getSinglePackage(id: $id){
-          packageName,
-          packagePrice,
-          packageDescription,
-          packageImages,
-          packageDuration,
-          packageCustomer
-        }
-      }
-    `;
+      const query = singlePackageQuery;
       const variables = { id: this.$route.params.id };
       graphql(query, variables)
         .then(res => {
           if (!res.data.errors) {
             // Shorten variable
             const getSinglePackage = res.data.data.getSinglePackage;
+            // Store Raw Data
+            const rawPackage = Object.assign({}, getSinglePackage);
             // Generate Full URL
             const packageImages = getSinglePackage.packageImages.map(
               imgUrl => `${this.imgEndpoint}/${imgUrl}`
@@ -286,7 +327,7 @@ export default {
             // Assign full URL
             getSinglePackage.packageImages = packageImages;
             // Assign data
-            this.singlePackage = getSinglePackage;
+            this.singlePackage = rawPackage;
             this.newPackage = getSinglePackage;
           } else if (res.data.errors) {
             this.packageNotFound = true;
@@ -295,9 +336,15 @@ export default {
         .catch(() => {
           return;
         });
+    },
+    removeErrors() {
+      for (let key in packageInit) {
+        this.errors[key] = null;
+      }
     }
   },
   mounted() {
+    this.removeErrors();
     if (this.$route.path !== "/package/add") this.getSinglePackage();
     else if (this.$route.path === "/package/add") this.addPackage = true;
   }
@@ -346,6 +393,11 @@ textarea {
 .flex button {
   width: 19%;
 }
+input:disabled {
+  background: #66a6d0;
+  cursor: unset;
+}
+
 input[type="file"] {
   display: none;
 }
@@ -400,6 +452,57 @@ input[type="file"] {
   display: block;
 }
 .upload-label:hover {
+  color: #000;
+}
+.delete-image-confirm {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.delete-image-box {
+  position: absolute;
+  margin: auto;
+  padding: 30px 15px 10px;
+  min-width: 250px;
+  min-height: 250px;
+  background: #fff;
+  box-shadow: inset 0 7px 9px -7px rgba(0, 0, 0, 0.04);
+  border-radius: 5px;
+}
+.delete-image-box img {
+  width: 150px;
+  height: 150px;
+  margin: 0 auto 10px;
+  display: block;
+}
+.delete-image-box div {
+  text-align: center;
+}
+.delete-image-box .buttons {
+  display: flex;
+  justify-content: center;
+}
+.delete-image-box button {
+  padding: 10px;
+  margin: 10px 5px;
+}
+.error {
+  display: inline-block;
+  background: #e74c3c;
+  color: #fff;
+  padding: 5px;
+  border-radius: 5px;
+}
+.not-found {
+  font-size: 30px;
+  text-align: center;
+  text-transform: uppercase;
   color: #000;
 }
 </style>
