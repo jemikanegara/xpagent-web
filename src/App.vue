@@ -64,7 +64,7 @@ export default {
 };
 </script>
 <style>
-* {
+*:not(path) {
   padding: 0;
   margin: 0;
   box-sizing: border-box;
@@ -73,6 +73,7 @@ export default {
   font-size: 14px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
     Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  outline: none;
 }
 .flex {
   display: flex;
