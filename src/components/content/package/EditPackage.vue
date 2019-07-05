@@ -20,7 +20,7 @@
                   <div class="upload-box">
                     <img :src="imgUrl">
                     <div
-                      v-if="newPackage.packageImages.length > 1"
+                      v-if="newPackage.packageImages.length > 1 || addPackage"
                       class="delete-image"
                       @click="addPackage ? deleteImage(i) : deleteConfirm(i)"
                     >
@@ -346,7 +346,10 @@ export default {
   mounted() {
     this.removeErrors();
     if (this.$route.path !== "/package/add") this.getSinglePackage();
-    else if (this.$route.path === "/package/add") this.addPackage = true;
+    else if (this.$route.path === "/package/add") {
+      this.newPackage.packageImages = [];
+      this.addPackage = true;
+    }
   }
 };
 </script>

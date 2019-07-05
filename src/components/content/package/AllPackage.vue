@@ -7,6 +7,23 @@
         <button class="important-button" @click="$router.push('/package/add')">Add New Package</button>
       </div>
     </div>
+
+    <div v-if="deleteModal" class="delete-modal-container">
+      <div class="delete-modal">
+        Are you sure want to delete these packages?
+        <div class="delete-list">
+          <ul v-for="(value, checkedSinglePackage) in checkedPackages" :key="checkedSinglePackage">
+            <li v-if="value">{{getPackageName(checkedSinglePackage)}}</li>
+          </ul>
+        </div>
+
+        <div class="confirm-button flex">
+          <button class="normal-button" @click="deleteModalToggle(false)">Cancel</button>
+          <button class="important-button" @click="deletePackages">Delete</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Top Checkbox -->
     <div class="flex package-card top-checkbox">
       <!-- Top Checkbox - Checkbox -->
@@ -29,7 +46,10 @@
         <div
           class="check-information"
         >{{checkedTotal}} package{{checkedTotal > 1 ? 's' : ''}} selected</div>
-        <button class="important-button delete-package">Delete Selected</button>
+        <button
+          @click="deleteModalToggle(true)"
+          class="important-button delete-package"
+        >Delete All Selected</button>
       </div>
     </div>
     <!-- Packages -->
@@ -63,10 +83,10 @@
             <span class="package-duration">{{" "}}{{singlePackage.packageDuration}} hours /</span>
             <span class="package-customer">{{" "}}{{singlePackage.packageCustomer}} person</span>
           </div>
+
           <router-link :to="{name:'package', params :{id : singlePackage._id} }">
             <button class="edit important-button" type="button">Edit</button>
           </router-link>
-          <button class="delete-package normal-button" type="button">Delete</button>
         </div>
       </div>
     </div>
@@ -76,6 +96,7 @@
 <script>
 import graphql from "../../../ajax/graphql";
 import { packageQuery } from "./PackageQueries";
+import { deleteMultiPackageQuery } from "./PackageQueries";
 export default {
   name: "packages",
   data: () => ({
@@ -84,7 +105,8 @@ export default {
     packagesError: null,
     checkedPackages: {},
     checkAllPackages: false,
-    checkedTotal: 0
+    checkedTotal: 0,
+    deleteModal: false
   }),
   watch: {
     checkAllPackages: {
@@ -138,6 +160,36 @@ export default {
     },
     singleUncheck(id) {
       this.checkedPackages[id] = false;
+    },
+    deleteModalToggle(value) {
+      this.deleteModal = value;
+      document.body.style.height = this.deleteModal ? "100%" : "unset";
+      document.body.style.overflow = this.deleteModal ? "hidden" : "unset";
+    },
+    getPackageName(id) {
+      return this.packages
+        .slice()
+        .filter(singlePackage => singlePackage._id === id)[0].packageName;
+    },
+    deletePackages() {
+      const query = deleteMultiPackageQuery;
+      const _id = Object.keys(this.checkedPackages)
+        .filter(_id => this.checkedPackages[_id])
+        .map(_id => ({ _id }));
+      const variables = {
+        _id
+      };
+      graphql(query, variables)
+        .then(res => {
+          console.log(res);
+          if (!res.data.errors) {
+            this.getPackages();
+            this.deleteModalToggle(false);
+          }
+        })
+        .catch(err => {
+          console.log(err);
+        });
     }
   },
   mounted() {
@@ -192,7 +244,7 @@ input[type="checkbox"] {
   padding: 10px;
   position: relative;
   outline: none;
-  box-shadow: 0 0 3px 0 rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 7px 0 rgba(0, 0, 0, 0.3);
   cursor: pointer;
   background: #fff;
   border-radius: 2px;
@@ -231,6 +283,45 @@ input[type="checkbox"]:checked .fa-check {
   align-items: center;
 }
 .flex.actions > * {
+  margin-right: 10px;
+}
+.delete-modal-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 99;
+}
+.delete-modal {
+  max-width: 500px;
+  margin: 5% auto 0;
+  padding: 30px;
+  background: #fff;
+}
+.delete-modal * {
+  word-wrap: break-word;
+}
+.delete-list {
+  padding: 10px;
+  background: #c7ecee;
+  color: #fff;
+  border-radius: 5px;
+  margin: 10px 0;
+}
+.delete-list ul {
+  margin-left: 20px;
+}
+.delete-list li {
+  margin-bottom: 5px;
+}
+.confirm-button {
+  background: #eee;
+  padding: 10px;
+}
+.confirm-button button {
+  padding: 10px;
   margin-right: 10px;
 }
 </style>

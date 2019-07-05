@@ -74,16 +74,18 @@ export const deletePackageImgQuery = `
 
 export const deletePackageQuery = `
     mutation ($_id : ID!){
-        deletePackage(_id: $_id){
+        deletePackage(tourPackage: {_id: $_id}){
             _id
         }
     }
 `
 
 export const deleteMultiPackageQuery = `
-    mutation ($_id : [ID!]!){
-        deleteMultiPackage(_id: $_id){
-            _id
+    mutation ($_id : [deletePackageInput!]!){
+        deleteMultiPackages(tourPackages: $_id){
+            n,
+            ok,
+            deletedCount
         }
     }
 `
