@@ -106,4 +106,15 @@ export default {
 .important-button:hover {
   background: #2980b9;
 }
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+.notification__info-wrapper::-webkit-scrollbar-track {
+  background: #fff;
+}
+.notification__info-wrapper::-webkit-scrollbar-thumb {
+  background: #e0e0e0;
+  border-radius: 4px;
+}
 </style>

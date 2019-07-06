@@ -218,7 +218,6 @@ export default {
 
         graphql(deletePackageImgQuery, variables)
           .then(res => {
-            console.log(res);
             if (!res.data.errors) {
               deleteLocalImg();
             }
