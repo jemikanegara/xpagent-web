@@ -1,5 +1,7 @@
 <template>
-  <div>All Booking</div>
+  <div>
+    <div class="title">All Booking</div>
+  </div>
 </template>
 
 <script>
